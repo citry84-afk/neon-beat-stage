@@ -19,10 +19,23 @@
                 ...parameters
             });
         };
+        
+        window.trackDonationClick = function(amount = 'custom') {
+            gtag('event', 'donation_click', {
+                source: 'neon_beat_stage',
+                amount: amount,
+                value: parseFloat(amount) || 1
+            });
+        };
     </script>
     
     <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4837743291717475" crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4837743291717475"
+         crossorigin="anonymous"></script>
+    <!-- Consent Mode v2 + Banner -->
+    <script defer src="/consent.js"></script>
+    <!-- Global Leaderboard System -->
+    <script src="/leaderboard-global.js"></script>
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -366,9 +379,16 @@
                 comboElement.style.animation = "none";
             }
         }        
+        // CONTADOR DE PARTIDAS PARA ESTRATEGIA INTELIGENTE
+        let gamesPlayed = 0;
+        let lastInterstitialTime = 0;
+        
         function gameOver() {
             gameState.gameActive = false;
             console.log("💀 GAME OVER");
+            
+            gamesPlayed++;
+            const currentTime = Date.now();
             
             // Track game over
             gtag('event', 'game_over', { 
@@ -378,14 +398,37 @@
                 perfect_hits: gameState.perfectHits
             });
             
+            // 🏆 INTEGRACIÓN DEL LEADERBOARD GLOBAL
+            setTimeout(() => {
+                if (window.GlobalLeaderboard) {
+                    if (!window.neonBeatLeaderboard) {
+                        window.neonBeatLeaderboard = new GlobalLeaderboard('neon-beat-stage');
+                    }
+                    // Enviar puntuación al leaderboard global
+                    window.neonBeatLeaderboard.submitScore(gameState.score, Math.floor(gameState.score / 100), gameState.combo);
+                }
+            }, 1000);
+            
+            // ESTRATEGIA INTELIGENTE DE MONETIZACIÓN
+            // 1. Siempre mostrar banners en game over (no invasivo)
             showAds();
+            
+            // 2. Interstitial solo cada 3 partidas perdidas Y cada 5 minutos mínimo
+            const timeSinceLastInterstitial = currentTime - lastInterstitialTime;
+            const shouldShowInterstitial = (gamesPlayed % 3 === 0) && (timeSinceLastInterstitial > 300000); // 5 minutos
+            
+            if (shouldShowInterstitial) {
+                showInterstitialAd();
+                lastInterstitialTime = currentTime;
+            }
+            
             showViralGameOverScreen();
         }
 
         function showViralGameOverScreen() {
             const modal = document.createElement("div");
             modal.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 1000;";
-            modal.innerHTML = `<div style="background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 30px; border-radius: 20px; text-align: center; border: 3px solid #00FFFF; box-shadow: 0 0 30px #FF0080; max-width: 90%;"><h2 style="color: #FF0080; margin: 20px 0;">🎮 GAME OVER! 🎮</h2><div style="margin: 20px 0; color: white;"><p>🎯 Score: ${gameState.score}</p><p>🔥 Max Combo: ${gameState.combo}</p><p>✨ Notes Hit: ${Math.floor(gameState.score / 100)}</p></div><button onclick="shareNeonBeat()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FF0080, #00FFFF); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">📱 SHARE SCORE</button><button onclick="copyNeonBeatMessage()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FFFF00, #FF0080); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">📋 COPY MESSAGE</button><button onclick="watchAdToContinue(event)" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FF6600, #FFFF00); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">🎬 WATCH AD TO CONTINUE</button><button onclick="restartGame()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #8A2BE2, #00FFFF); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">🔄 NEW GAME</button>
+            modal.innerHTML = `<div style="background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 30px; border-radius: 20px; text-align: center; border: 3px solid #00FFFF; box-shadow: 0 0 30px #FF0080; max-width: 90%;"><h2 style="color: #FF0080; margin: 20px 0;">🎮 GAME OVER! 🎮</h2><div style="margin: 20px 0; color: white;"><p>🎯 Score: ${gameState.score}</p><p>🔥 Max Combo: ${gameState.combo}</p><p>✨ Notes Hit: ${Math.floor(gameState.score / 100)}</p></div><button onclick="showGlobalLeaderboard()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #00FFFF, #FF0080); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">🏆 GLOBAL RANKING</button><button onclick="shareNeonBeat()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FF0080, #00FFFF); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">📱 SHARE SCORE</button><button onclick="copyNeonBeatMessage()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FFFF00, #FF0080); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">📋 COPY MESSAGE</button><div style="margin: 20px 0;"><h3 style="color: #FFFF00; margin-bottom: 15px;">💖 ¡Apoya el desarrollo!</h3><div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"><a href="https://paypal.me/lipastudios/0.50" target="_blank" onclick="trackDonationClick('0.50')" style="padding: 12px 20px; background: linear-gradient(45deg, #4CAF50, #8BC34A); color: white; font-weight: bold; border-radius: 8px; text-decoration: none; font-size: 14px;">☕ 0,50€</a><a href="https://paypal.me/lipastudios/2.00" target="_blank" onclick="trackDonationClick('2.00')" style="padding: 12px 20px; background: linear-gradient(45deg, #FF9800, #FFC107); color: white; font-weight: bold; border-radius: 8px; text-decoration: none; font-size: 14px;">🍕 2€</a><a href="https://paypal.me/lipastudios/5.00" target="_blank" onclick="trackDonationClick('5.00')" style="padding: 12px 20px; background: linear-gradient(45deg, #E91E63, #F06292); color: white; font-weight: bold; border-radius: 8px; text-decoration: none; font-size: 14px;">🎮 5€</a></div></div><button onclick="watchAdToContinue(event)" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #FF6600, #FFFF00); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">🎬 WATCH AD TO CONTINUE</button><button onclick="restartGame()" style="width:100%; margin:10px 0; padding:15px; background: linear-gradient(45deg, #8A2BE2, #00FFFF); border:none; color:white; font-weight:bold; border-radius:10px; cursor:pointer; font-size:16px;">🔄 NEW GAME</button>
             
             <!-- Interstitial Ad Container -->
             <div id="gameOverAd" style="margin-top: 20px; padding: 10px; background: rgba(0,0,0,0.8); border: 1px solid #00FFFF; border-radius: 8px;">
@@ -487,6 +530,21 @@
             location.reload();
         }
         
+        // 🏆 FUNCIÓN PARA MOSTRAR RANKING GLOBAL
+        function showGlobalLeaderboard() {
+            if (!window.neonBeatLeaderboard) {
+                window.neonBeatLeaderboard = new GlobalLeaderboard('neon-beat-stage');
+            }
+            
+            // Si no hay usuario, pedir nombre primero
+            if (!window.neonBeatLeaderboard.currentUser) {
+                window.neonBeatLeaderboard.showNamePrompt(false);
+            } else {
+                // Mostrar ranking
+                window.neonBeatLeaderboard.showLeaderboard();
+            }
+        }
+        
         function showInterstitialAd() {
             try {
                 gtag('event', 'ad_impression', { game_name: 'neon_beat_stage' });
@@ -540,22 +598,15 @@
         let bannerShown = false;
         
         function checkBannerDisplay() {
-            if (!gameState.gameActive || bannerShown) return;
-            
-            const gameTime = Date.now() - gameStartTime;
-            if (gameTime > 30000) { // 30 segundos
-                showAds();
-                bannerShown = true;
-                console.log('💰 Banners mostrados después de 30s de juego');
-            }
+            // ESTRATEGIA INTELIGENTE - NO MOSTRAR BANNERS DURANTE EL JUEGO
+            // Los banners solo se muestran en menú y game over
+            return;
         }
         
-        // Mostrar banners en pausa (oportunidad de monetización)
+        // ESTRATEGIA INTELIGENTE - NO MOSTRAR BANNERS EN PAUSA
         function showPauseAds() {
-            if (gameState.paused) {
-                showAds();
-                console.log('💰 Banners mostrados durante pausa');
-            }
+            // Los banners solo se muestran en menú y game over
+            return;
         }
     </script>
 </body>
